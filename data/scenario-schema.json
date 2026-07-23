@@ -1,0 +1,47 @@
+{
+  "$schema": "scenario-input-v1",
+  "description": "Structured input a user fills in describing their legacy environment for assessment",
+  "fields": {
+    "environment_summary": {
+      "type": "string",
+      "required": true,
+      "description": "Free-text description of the current-state environment (systems, platforms, known pain points)",
+      "example": "65 SharePoint on-prem sites with active Nintex workflows, migrating to AEM. Government client, multi-agency access controls."
+    },
+    "app_count": {
+      "type": "number",
+      "required": true,
+      "description": "Number of applications, sites, or discrete systems in scope",
+      "example": 65
+    },
+    "data_volume_estimate": {
+      "type": "string",
+      "required": true,
+      "description": "Rough size/scale of data or content to migrate",
+      "example": "2.4 TB across all sites"
+    },
+    "compliance_constraints": {
+      "type": "array",
+      "items": ["HIPAA", "SOC2", "FedRAMP", "State/Government Data Residency", "PCI-DSS", "None"],
+      "required": true,
+      "description": "Applicable regulatory or contractual constraints"
+    },
+    "integration_complexity": {
+      "type": "string",
+      "enum": ["low", "medium", "high"],
+      "required": true,
+      "description": "Degree of cross-system dependency (APIs, workflows, auth integrations)"
+    },
+    "team_size": {
+      "type": "number",
+      "required": true,
+      "description": "Number of engineers/consultants available for the migration"
+    },
+    "timeline_target": {
+      "type": "string",
+      "required": true,
+      "description": "Desired or contracted completion window",
+      "example": "24 months"
+    }
+  }
+}

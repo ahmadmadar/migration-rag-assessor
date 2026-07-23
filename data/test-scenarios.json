@@ -1,0 +1,90 @@
+[
+  {
+    "id": "test-1-sp-aem-gov",
+    "environment_summary": "65 SharePoint on-prem sites with active Nintex approval workflows, migrating to AEM for a multi-agency state government client. Several sites reference content across each other.",
+    "app_count": 65,
+    "data_volume_estimate": "2.4 TB",
+    "compliance_constraints": ["State/Government Data Residency"],
+    "integration_complexity": "high",
+    "team_size": 8,
+    "timeline_target": "24 months",
+    "expected_relevant_ids": ["sp-workflow-migration", "sp-to-aem-content-mapping", "government-data-residency", "workflow-dependency-risk"]
+  },
+  {
+    "id": "test-2-dotnet-modernization",
+    "environment_summary": "Legacy .NET Framework application with several outdated third-party libraries, needs to move to containers. Called by three other internal tools via undocumented APIs.",
+    "app_count": 1,
+    "data_volume_estimate": "N/A - application only",
+    "compliance_constraints": ["None"],
+    "integration_complexity": "medium",
+    "team_size": 4,
+    "timeline_target": "6 months",
+    "expected_relevant_ids": ["dotnet-containerization", "api-dependency-mapping"]
+  },
+  {
+    "id": "test-3-database-migration",
+    "environment_summary": "On-prem SQL Server database with 80+ stored procedures, feeding two reporting tools and one downstream billing application, migrating to Azure SQL.",
+    "app_count": 3,
+    "data_volume_estimate": "450 GB",
+    "compliance_constraints": ["SOC2"],
+    "integration_complexity": "high",
+    "team_size": 5,
+    "timeline_target": "9 months",
+    "expected_relevant_ids": ["database-schema-migration", "data-integrity-validation-risk"]
+  },
+  {
+    "id": "test-4-identity-migration",
+    "environment_summary": "Migrating authentication from AD FS to Entra ID for a state government client, several applications have hardcoded role logic tied to legacy AD groups.",
+    "app_count": 12,
+    "data_volume_estimate": "N/A",
+    "compliance_constraints": ["State/Government Data Residency"],
+    "integration_complexity": "high",
+    "team_size": 6,
+    "timeline_target": "12 months",
+    "expected_relevant_ids": ["legacy-auth-migration", "government-data-residency", "phased-approval-gating"]
+  },
+  {
+    "id": "test-5-multiyear-readiness",
+    "environment_summary": "24-month datacenter-to-Azure migration involving five internal client teams and two external vendors, formal governance sign-off required at each phase.",
+    "app_count": 40,
+    "data_volume_estimate": "8 TB",
+    "compliance_constraints": ["State/Government Data Residency"],
+    "integration_complexity": "high",
+    "team_size": 15,
+    "timeline_target": "24 months",
+    "expected_relevant_ids": ["stakeholder-communication-risk", "cross-team-dependency-sequencing", "phased-approval-gating", "government-data-residency"]
+  },
+  {
+    "id": "test-6-large-file-migration",
+    "environment_summary": "Legacy file share with 3TB of unstructured documents accumulated over 8 years, no existing retention policy or content ownership records.",
+    "app_count": 1,
+    "data_volume_estimate": "3 TB",
+    "compliance_constraints": ["None"],
+    "integration_complexity": "low",
+    "team_size": 3,
+    "timeline_target": "4 months",
+    "expected_relevant_ids": ["large-volume-file-migration", "content-cleanup-pre-migration"]
+  },
+  {
+    "id": "test-7-financial-cutover",
+    "environment_summary": "Core financial transaction system migration where rollback after cutover would be extremely costly, full audit trail required for the migration process itself.",
+    "app_count": 1,
+    "data_volume_estimate": "1.1 TB",
+    "compliance_constraints": ["SOC2", "PCI-DSS"],
+    "integration_complexity": "high",
+    "team_size": 10,
+    "timeline_target": "10 months",
+    "expected_relevant_ids": ["parallel-run-validation", "rollback-planning", "audit-trail-during-cutover"]
+  },
+  {
+    "id": "test-8-monolith-cutover-strategy",
+    "environment_summary": "Large tightly-coupled monolith with many internal tools calling into it via undocumented integrations, deciding between phased or single cutover event.",
+    "app_count": 1,
+    "data_volume_estimate": "N/A",
+    "compliance_constraints": ["None"],
+    "integration_complexity": "high",
+    "team_size": 7,
+    "timeline_target": "14 months",
+    "expected_relevant_ids": ["api-dependency-mapping", "phased-vs-bigbang-cutover", "cross-team-dependency-sequencing"]
+  }
+]

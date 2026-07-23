@@ -1,0 +1,154 @@
+[
+  {
+    "id": "sp-workflow-migration",
+    "title": "SharePoint Site Migration with Active Workflows",
+    "category": "Data & Content Migration",
+    "content": "Sites running active Nintex or Power Automate workflows cannot be migrated as static content — workflow logic, triggers, and approval chains must be re-platformed, not just copied. A common failure mode is migrating document libraries first and workflows later, which breaks in-flight approvals and orphans documents mid-process. The correct sequence is: inventory all active workflow instances, freeze new workflow starts on a defined cutoff date, allow in-flight instances to complete on the legacy platform, then migrate content once the workflow queue is clear. For sites where workflows cannot be paused (e.g. continuous intake processes), a parallel-run period is required where both platforms operate simultaneously with reconciliation checks. Budget 2-3x the estimated content-migration time for sites with more than 5 active workflow types, since workflow logic translation (especially Nintex-to-Power-Automate or fully custom re-implementation in the target platform) is manual, not scriptable. Cross-site workflow dependencies — where a workflow on Site A triggers an action on Site B — are the highest-risk pattern and should be flagged for dedicated integration testing before cutover.",
+    "tags": ["sharepoint", "aem", "workflow-dependency", "content-migration", "nintex"],
+    "risk_signals": ["active nintex/power automate workflows", "cross-site workflow triggers", "in-flight approval chains"]
+  },
+  {
+    "id": "sp-to-aem-content-mapping",
+    "title": "SharePoint-to-AEM Content Model Mapping",
+    "category": "Data & Content Migration",
+    "content": "SharePoint's list/library metadata model does not map cleanly onto AEM's component-and-template content architecture. Direct field-for-field migration produces unusable content in the target system. The correct approach starts with a content model mapping exercise: catalog SharePoint content types and custom columns, then design corresponding AEM component structures before writing any migration scripts. Sites using heavily customized SharePoint content types (common in multi-year government deployments where fields accumulate over time) require the most mapping effort — expect 30-40% of the total migration timeline to go to mapping and validation rather than transfer execution. A phased site-by-site rollout, grouped by content-type similarity rather than by business unit, reduces rework because sites sharing a content model can reuse the same mapping and transformation scripts. Metadata that has no AEM equivalent (e.g. SharePoint-specific approval status fields) should be preserved in a custom property rather than dropped, since compliance audits frequently require historical field values even after platform migration. Automated validation scripts comparing source and target field counts per site catch silent data loss early, before user acceptance testing.",
+    "tags": ["sharepoint", "aem", "content-modeling", "metadata-migration"],
+    "risk_signals": ["custom content types", "non-standard metadata fields", "large number of sites (50+)"]
+  },
+  {
+    "id": "large-volume-file-migration",
+    "title": "Large-Volume File Migration Throughput Planning",
+    "category": "Data & Content Migration",
+    "content": "Migrations exceeding 1TB of unstructured file content are frequently underestimated on timeline because teams plan for data volume but not for throughput constraints and validation overhead. Network bandwidth between source and target, API rate limits on the target platform, and file-level checksum validation all impose a practical ceiling on daily migration volume regardless of available tooling. A realistic planning baseline is 50-150GB per day for validated (checksum-confirmed) migration through cloud-native transfer tools, lower if the target platform enforces per-file API throttling. For datasets over 2TB, running a small-scale pilot batch (5-10GB) first to measure actual throughput in the specific environment prevents committing to a client timeline based on vendor-published theoretical limits. Deduplication before migration — common in long-lived SharePoint environments with versioned document copies — can reduce actual transfer volume by 15-30%, and should be run as a discovery step, not skipped to save time, since dedup after migration is far more expensive.",
+    "tags": ["data-migration", "throughput", "unstructured-data", "timeline-estimation"],
+    "risk_signals": ["data volume over 1TB", "unknown source throughput", "no pilot batch planned"]
+  },
+  {
+    "id": "database-schema-migration",
+    "title": "Legacy Database Schema Migration and Compatibility",
+    "category": "Data & Content Migration",
+    "content": "Migrating a legacy relational database (commonly SQL Server on-prem) to a cloud-native equivalent (Azure SQL, managed PostgreSQL) surfaces schema incompatibilities that are invisible until migration is attempted: deprecated data types, stored procedures using platform-specific syntax, and triggers with side effects on other systems. The recommended sequence is schema-only migration first (structure, no data), followed by a compatibility validation pass using the target platform's native assessment tooling, before any data transfer begins. Stored procedures and triggers should be inventoried and categorized into three buckets: directly portable, requiring syntax translation, and requiring full re-architecture — this categorization alone typically takes 1-2 weeks for databases with more than 50 stored procedures and should be budgeted as its own discovery phase rather than folded into general migration estimates. Databases supporting multiple downstream integrations (reporting tools, other applications reading directly from tables) carry disproportionate cutover risk since every consumer must be identified and validated against the new schema before the legacy database can be decommissioned.",
+    "tags": ["database-migration", "sql-server", "azure-sql", "schema-compatibility"],
+    "risk_signals": ["legacy stored procedures", "multiple downstream consumers", "platform-specific SQL syntax"]
+  },
+  {
+    "id": "content-cleanup-pre-migration",
+    "title": "Legacy Content Deduplication and Cleanup Before Migration",
+    "category": "Data & Content Migration",
+    "content": "Migrating content as-is from a legacy system that has operated for 5+ years without governance typically means migrating significant volumes of stale, duplicate, or orphaned content along with active data — inflating both migration cost and target-platform storage cost indefinitely. A pre-migration content audit, even a lightweight one (last-modified date thresholds, owner-verification surveys sent to content owners), consistently reduces migration scope by 20-40% in long-lived government or enterprise environments. The audit should be run as a distinct phase with a defined cutoff: content not accessed or claimed within the audit window is flagged for archival rather than migration, not deleted outright, since compliance retention requirements often apply even to unused content. Skipping this step to save calendar time is a common mistake — the time saved during migration planning is typically lost several times over in extended validation and testing against a larger-than-necessary content set.",
+    "tags": ["content-cleanup", "deduplication", "governance", "pre-migration-audit"],
+    "risk_signals": ["environment older than 5 years", "no existing content governance", "unknown content ownership"]
+  },
+  {
+    "id": "dotnet-containerization",
+    "title": "Legacy .NET Application Containerization Path",
+    "category": "Application Migration",
+    "content": "Containerizing a legacy .NET Framework application (as opposed to .NET Core/5+) requires an explicit decision point: containerize as-is using Windows containers, or invest in porting to .NET Core/8 first for Linux container compatibility and long-term cost efficiency. Windows containers are faster to ship but carry higher runtime licensing and resource costs indefinitely, making them a reasonable choice only for applications nearing planned retirement (under 18 months remaining lifespan). Applications with a longer expected lifespan justify the porting investment despite added timeline, since Linux container hosting costs are typically 30-50% lower at scale. Dependency auditing is the primary risk driver here: applications using older third-party libraries with no .NET Core equivalent, or relying on Windows-specific APIs (registry access, COM interop), require either compatibility shims or targeted rewrites of the affected modules. This dependency audit should be completed before committing to a target timeline, since undiscovered incompatible dependencies are the most common cause of containerization projects doubling their original estimate.",
+    "tags": ["dotnet", "containerization", "kubernetes", "application-modernization"],
+    "risk_signals": [".net framework (not core)", "windows-specific api dependencies", "outdated third-party libraries"]
+  },
+  {
+    "id": "monolith-staged-decomposition",
+    "title": "Monolith-to-Microservices Staged Decomposition",
+    "category": "Application Migration",
+    "content": "Attempting to decompose a legacy monolith into microservices in a single migration effort is a high-failure-rate pattern; the recommended approach is staged decomposition using the strangler fig pattern — new functionality is built as separate services while the monolith continues serving existing functionality, with traffic gradually routed away from monolith components as replacements prove stable. The first extraction candidate should be the component with the clearest bounded context and fewest cross-cutting dependencies (commonly an authentication service or a well-isolated reporting module), not the most business-critical component, since the goal of the first extraction is validating the pattern and tooling under lower risk. Each extracted service requires its own data ownership boundary; shared-database patterns between the monolith and extracted services should be treated as temporary technical debt with an explicit decommission date, not a permanent architecture. Government and enterprise clients with change-control processes often underestimate the organizational overhead of this pattern — each service extraction typically requires its own approval cycle, which should be factored into timeline alongside the technical work itself.",
+    "tags": ["microservices", "strangler-fig", "monolith-decomposition", "application-architecture"],
+    "risk_signals": ["tightly coupled monolith", "shared database across modules", "formal change-control process"]
+  },
+  {
+    "id": "api-dependency-mapping",
+    "title": "API and Integration Dependency Mapping Before Cutover",
+    "category": "Application Migration",
+    "content": "Applications that have been in production for multiple years frequently accumulate undocumented integration points — internal tools built by other teams calling into APIs without formal registration, scheduled jobs reading from shared file locations, or reporting tools querying application databases directly. Migrating or replatforming an application without first mapping these undocumented dependencies is the single most common cause of post-cutover incidents in enterprise migrations. A practical discovery method beyond documentation review is network traffic analysis on the legacy system over a 2-4 week window to identify actual inbound and outbound connections, cross-referenced against known documented integrations to surface the gap. Each undocumented dependency found should be triaged for whether it needs to continue functioning post-migration, and its owning team engaged directly, since dependency owners are often unaware their tooling relies on the system being migrated. Budget explicit time for this discovery phase rather than treating it as a checklist item — for systems older than 3 years, undocumented dependency discovery and remediation commonly adds 15-25% to the overall application migration timeline.",
+    "tags": ["api-mapping", "integration-discovery", "dependency-analysis", "legacy-systems"],
+    "risk_signals": ["system age over 3 years", "no formal api registry", "multiple consuming teams"]
+  },
+  {
+    "id": "legacy-auth-migration",
+    "title": "Legacy Authentication System Migration",
+    "category": "Application Migration",
+    "content": "Migrating authentication from a legacy on-prem system (AD FS, custom SAML implementations, or application-specific credential stores) to a cloud identity provider (Azure AD/Entra ID) requires a coexistence period rather than a single cutover, because authentication touches every downstream application simultaneously. The recommended pattern is a hybrid identity phase where the legacy directory and cloud directory are synchronized, allowing applications to be migrated to the new identity provider incrementally rather than requiring a synchronized cutover across all systems at once. Applications with hardcoded role or group logic tied to legacy directory structures require the most remediation, since group membership models rarely map one-to-one between systems. For government and regulated clients, authentication migration typically requires its own security review and penetration test before go-live, independent of the broader migration's testing cycle — this should be scheduled as an early parallel workstream, not appended at the end, since security review turnaround time is often the longest single dependency in the entire migration timeline.",
+    "tags": ["identity-migration", "azure-ad", "entra-id", "authentication", "hybrid-identity"],
+    "risk_signals": ["hardcoded role/group logic", "government or regulated client", "multiple dependent applications"]
+  },
+  {
+    "id": "government-data-residency",
+    "title": "Government and Public-Sector Data Residency Constraints",
+    "category": "Compliance & Governance",
+    "content": "State and government engagements frequently carry data residency requirements that restrict which Azure regions and services are permissible, sometimes down to requiring specific government-community cloud offerings (e.g. Azure Government) rather than commercial Azure regions. These constraints must be confirmed at the start of a migration, not discovered mid-project, since switching target regions or cloud offerings after infrastructure provisioning has begun can require re-provisioning significant portions of the environment. Multi-agency government clients often layer agency-specific access control requirements on top of baseline data residency rules, meaning a single migration may need to satisfy several distinct compliance regimes simultaneously depending on which agency's data is involved. Contractual data residency commitments should be cross-referenced against the actual technical capabilities of the proposed target architecture before any migration timeline is committed to a client, since gaps discovered late in the engagement are costly to remediate and can trigger contract renegotiation.",
+    "tags": ["government", "data-residency", "azure-government", "compliance"],
+    "risk_signals": ["multi-agency client", "government/public sector", "data residency requirements unclear"]
+  },
+  {
+    "id": "phased-approval-gating",
+    "title": "Phased Approval Gating for Regulated Migrations",
+    "category": "Compliance & Governance",
+    "content": "Regulated and government clients typically require formal sign-off gates between migration phases rather than continuous delivery, and these approval cycles are frequently the largest source of schedule variance in an otherwise well-executed technical migration. Each gate (e.g. design approval, security review, pre-production validation, go-live authorization) should be mapped explicitly into the project timeline with realistic turnaround estimates based on the client's known governance cadence, not the vendor's preferred pace. A common estimation error is treating approval gates as instantaneous checkpoints rather than multi-week processes with their own internal review cycles; for large multi-year engagements, cumulative approval gate time across all phases can account for 15-20% of total project duration. Building slack into the schedule around known gate points, and submitting for approval slightly ahead of technical readiness where governance allows, reduces the compounding effect of gate delays on downstream phases.",
+    "tags": ["governance", "approval-gates", "regulated-industries", "change-control"],
+    "risk_signals": ["formal sign-off requirements", "multi-year engagement", "regulated client"]
+  },
+  {
+    "id": "audit-trail-during-cutover",
+    "title": "Audit Trail Continuity During Cutover",
+    "category": "Compliance & Governance",
+    "content": "For clients under audit obligations (government records retention, financial compliance, healthcare), the cutover window itself is an audit risk period: actions taken during migration (data transformations, temporary access grants for migration tooling, parallel-run reconciliation edits) must be logged with the same rigor as normal production activity, or the client can face a compliance gap even if the migration itself succeeds technically. Migration tooling and scripts used for cutover should write to a dedicated audit log distinct from routine application logs, capturing what was changed, by which process or individual, and when — this log should be retained per the client's standard retention policy, not treated as disposable migration artifacts. Temporary elevated access granted to migration engineers for cutover activities should be time-boxed and explicitly revoked immediately after cutover completion, with the grant and revocation both logged, since standing elevated access discovered during a post-migration audit is a common finding that damages client trust even when no misuse occurred.",
+    "tags": ["audit-trail", "compliance", "cutover-logging", "access-control"],
+    "risk_signals": ["audit/regulatory obligations", "temporary elevated access needed", "financial or healthcare data"]
+  },
+  {
+    "id": "phased-vs-bigbang-cutover",
+    "title": "Phased vs. Big-Bang Cutover Tradeoffs",
+    "category": "Cutover & Sequencing",
+    "content": "The choice between phased cutover (migrating in waves by site, business unit, or function) and big-bang cutover (single synchronized switch for the entire environment) should be driven by dependency density, not by preference for speed. Big-bang cutover is appropriate only when the system has few cross-component dependencies and rollback can be executed cleanly within a defined maintenance window; it minimizes the duration of running two parallel systems but concentrates all risk into a single event. Phased cutover spreads risk and allows lessons from early waves to improve later ones, but requires the source and target systems to coexist correctly for an extended period, which itself introduces integration risk if the two systems must interoperate during the transition. For environments with high cross-site or cross-application dependency (common in multi-year enterprise and government engagements), phased cutover grouped by dependency cluster — migrating tightly coupled components together rather than by arbitrary business unit boundaries — reduces the coexistence risk window while still avoiding big-bang concentration risk.",
+    "tags": ["cutover-strategy", "phased-migration", "big-bang", "risk-distribution"],
+    "risk_signals": ["high cross-system dependency", "large number of sites/apps", "long engagement timeline"]
+  },
+  {
+    "id": "parallel-run-validation",
+    "title": "Parallel-Run Validation Windows",
+    "category": "Cutover & Sequencing",
+    "content": "For systems where data integrity is critical and rollback after cutover would be costly (financial systems, systems of record for regulated data), running the legacy and target systems in parallel for a defined validation window before fully decommissioning the source is the standard risk mitigation pattern. The parallel-run window should have explicit, predefined success criteria (e.g. transaction counts matching within a defined tolerance, reconciliation reports showing zero unexplained discrepancies for N consecutive days) rather than an open-ended comfort period, since undefined parallel-run periods tend to extend indefinitely and delay full realization of migration benefits. Reconciliation during parallel-run should be automated wherever possible; manual reconciliation across large datasets is error-prone and does not scale past small pilot migrations. Teams should also predefine the decision authority and criteria for extending or shortening the parallel-run window, since this becomes a point of stakeholder disagreement if not agreed upon in advance.",
+    "tags": ["parallel-run", "reconciliation", "cutover-validation", "data-integrity"],
+    "risk_signals": ["financial or system-of-record data", "low rollback tolerance", "no predefined success criteria"]
+  },
+  {
+    "id": "rollback-planning",
+    "title": "Rollback Planning as a First-Class Deliverable",
+    "category": "Cutover & Sequencing",
+    "content": "Rollback plans are frequently written as an afterthought late in a migration project, by which point the practical options for rolling back have narrowed considerably due to decisions made earlier (e.g. legacy infrastructure decommissioned prematurely, source data no longer being updated). Rollback planning should begin at the same time as cutover planning, with an explicit decision point defined for how long legacy infrastructure remains available and updatable as a fallback after cutover. For phased migrations, each phase should have its own scoped rollback plan rather than relying on a single project-level rollback strategy, since rolling back a later phase may not require reversing earlier, already-validated phases. The rollback plan should specify concrete trigger criteria (defined error rates, specific critical-function failures) rather than leaving the rollback decision to real-time judgment during a high-pressure cutover event, since ambiguous trigger criteria are a common cause of delayed rollback decisions that compound incident impact.",
+    "tags": ["rollback-planning", "cutover-risk", "contingency-planning"],
+    "risk_signals": ["no defined rollback triggers", "early infrastructure decommissioning planned", "single project-level rollback plan"]
+  },
+  {
+    "id": "cross-team-dependency-sequencing",
+    "title": "Cross-Team Dependency Sequencing",
+    "category": "Cutover & Sequencing",
+    "content": "Large migrations involving multiple internal teams or external vendors on the client side frequently underestimate coordination overhead as a scheduling factor distinct from technical work. Sequencing should be planned around team and vendor dependency chains explicitly — identifying which migration activities require sign-off, resources, or completed prerequisite work from teams outside direct project control — rather than assuming all technical workstreams can proceed in parallel. A dependency map showing which teams block which migration phases, reviewed and confirmed with those teams directly (not assumed from documentation), surfaces scheduling conflicts early enough to negotiate around them. Teams with limited bandwidth for migration-related work (client IT staff who have day-to-day operational responsibilities alongside migration support) should have their available capacity explicitly estimated and built into the schedule as a constraint, since assuming full availability from client-side resources is a common source of schedule slippage in multi-year engagements.",
+    "tags": ["cross-team-coordination", "vendor-dependency", "resource-planning", "scheduling"],
+    "risk_signals": ["multiple internal/external teams involved", "limited client-side bandwidth", "no confirmed dependency map"]
+  },
+  {
+    "id": "workflow-dependency-risk",
+    "title": "Workflow Dependency Risk Pattern",
+    "category": "Risk Patterns",
+    "content": "Business process workflows (approval chains, automated notifications, scheduled data processing) are a disproportionately high source of post-migration incidents relative to their apparent technical simplicity, because workflow failures are often silent — a broken workflow may not throw an error, it simply stops triggering, and the gap is only discovered when someone notices an expected action never happened, sometimes weeks later. Migrations should include explicit workflow validation testing as a distinct test category from functional application testing, with test cases covering both the happy path and edge cases like workflows triggered by rare event combinations. Workflow owners (often business users rather than technical staff) should be engaged to define expected behavior and validate post-migration behavior directly, since technical teams frequently lack visibility into the full business intent behind a given workflow's logic.",
+    "tags": ["workflow-risk", "silent-failure", "testing", "business-process"],
+    "risk_signals": ["automated approval/notification workflows", "no workflow-specific test plan", "workflow owners not engaged in testing"]
+  },
+  {
+    "id": "data-integrity-validation-risk",
+    "title": "Data Integrity Validation Risk Pattern",
+    "category": "Risk Patterns",
+    "content": "Data migrations that pass record-count validation (source count matches target count) are frequently assumed to be complete and correct, but record-count matching does not guarantee field-level accuracy, referential integrity, or that relationships between records survived the migration correctly. Validation strategy should include field-level sampling (statistically significant random samples compared field-by-field between source and target) and referential integrity checks (foreign key relationships, cross-document references) as separate validation passes from simple count reconciliation. For content with complex internal relationships (SharePoint sites with cross-site references, databases with foreign key chains), a dedicated relationship-integrity test suite reduces the risk of subtle data corruption that would otherwise only surface much later when a user encounters a broken reference in production.",
+    "tags": ["data-integrity", "validation", "referential-integrity", "testing"],
+    "risk_signals": ["complex data relationships", "validation limited to record counts only", "cross-reference or foreign key dependencies"]
+  },
+  {
+    "id": "stakeholder-communication-risk",
+    "title": "Stakeholder Communication Risk in Multi-Year Engagements",
+    "category": "Risk Patterns",
+    "content": "Multi-year migration engagements face a distinct risk category unrelated to technical execution: stakeholder attrition and shifting priorities over the engagement's lifespan. Client-side sponsors, technical leads, and end users involved at project kickoff frequently change roles or leave the organization before completion, and each transition risks losing institutional knowledge about decisions made earlier in the project along with support for the project's continued priority. Maintaining a decision log (not just a technical documentation set, but a record of why key architectural and scope decisions were made, with the reasoning captured) mitigates this by giving incoming stakeholders context without requiring the original decision-makers to be available. Regular executive-level check-ins scheduled independently of technical milestone reviews help preserve organizational sponsorship through leadership transitions, since a project that loses its executive sponsor mid-engagement is at elevated risk of scope disputes or budget reduction regardless of technical progress.",
+    "tags": ["stakeholder-management", "multi-year-engagement", "organizational-risk", "decision-log"],
+    "risk_signals": ["engagement timeline over 12 months", "no decision log maintained", "single point of executive sponsorship"]
+  }
+]

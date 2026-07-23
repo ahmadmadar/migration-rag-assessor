@@ -1,0 +1,48 @@
+{
+  "$schema": "assessment-output-v1",
+  "description": "Structured JSON contract for Claude's generated migration assessment. Every roadmap phase and risk entry must cite source_ids from the retrieved knowledge base documents used to ground it.",
+  "fields": {
+    "complexity_score": {
+      "type": "number",
+      "range": [1, 10],
+      "description": "Overall migration complexity rating"
+    },
+    "complexity_rationale": {
+      "type": "string",
+      "description": "1-2 sentence explanation of the score, referencing scenario specifics"
+    },
+    "roadmap": {
+      "type": "array",
+      "items": {
+        "phase": "string, e.g. 'Discovery & Dependency Mapping'",
+        "duration": "string, e.g. '6-8 weeks'",
+        "activities": "array of strings",
+        "source_ids": "array of knowledge base doc ids that informed this phase"
+      }
+    },
+    "risk_register": {
+      "type": "array",
+      "items": {
+        "risk": "string",
+        "severity": "enum: low | medium | high",
+        "mitigation": "string",
+        "source_ids": "array of knowledge base doc ids that informed this risk"
+      }
+    },
+    "cost_band": {
+      "low": "string, e.g. '$1.2M'",
+      "high": "string, e.g. '$1.8M'",
+      "basis": "string explaining what drove the range"
+    },
+    "sources_used": {
+      "type": "array",
+      "description": "Deduplicated list of all knowledge base doc ids referenced anywhere in the output — used to render the sources panel in the UI"
+    }
+  },
+  "generation_rules": [
+    "Every roadmap phase and risk entry MUST include at least one source_id from the retrieved documents provided in context.",
+    "Do not invent a source_id that was not part of the retrieved set.",
+    "If no retrieved document supports a claim, omit the claim rather than generating it ungrounded.",
+    "Respond with valid JSON only — no markdown fences, no preamble."
+  ]
+}

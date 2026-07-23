@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Generation Validation Harness</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; }
+  .note { color: #555; font-size: 0.88rem; }
+  .panel { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; }
+  input[type="password"], select { width: 100%; padding: 8px; font-size: 0.9rem; box-sizing: border-box; margin-bottom: 10px; }
+  button { padding: 8px 16px; font-size: 0.9rem; cursor: pointer; margin-right: 8px; }
+  .status { padding: 10px 14px; border-radius: 6px; background: #f0f0f0; margin: 16px 0; font-size: 0.9rem; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
+  .badge.low { background: #dcf5e0; color: #1a7f37; }
+  .badge.medium { background: #fff3cd; color: #8a6300; }
+  .badge.high { background: #fbdada; color: #b8202e; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 8px 0; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+  .source-tag { display: inline-block; background: #eef; color: #3333aa; border-radius: 4px; padding: 1px 6px; font-size: 0.75rem; margin-right: 4px; }
+  .issue { color: #b8202e; font-size: 0.85rem; }
+  .clean { color: #1a7f37; font-size: 0.85rem; }
+  #tally { margin-top: 24px; padding: 16px; background: #f7f7f7; border-radius: 8px; }
+  #tally b { font-size: 1.1rem; }
+</style>
+</head>
+<body>
+  <h1>Migration Assessor — Generation Validation</h1>
+  <p class="note">
+    Runs a scenario through retrieval, then calls the real Claude API to generate a grounded
+    assessment, and checks that every roadmap/risk entry cites a valid retrieved source_id.
+    This calls the live API with your key — each run costs a small amount of real API credit.
+    Your key is held in memory for this page load only; it is never stored or sent anywhere
+    but api.anthropic.com.
+  </p>
+
+  <div class="panel">
+    <label for="apiKey">Anthropic API Key</label>
+    <input type="password" id="apiKey" placeholder="sk-ant-..." />
+    <label for="scenarioSelect">Test Scenario</label>
+    <select id="scenarioSelect"></select>
+    <button id="runBtn">Run Assessment</button>
+    <button id="runAllBtn">Run All 8 (builds aggregate grounding rate)</button>
+  </div>
+
+  <div class="status" id="status">Enter your API key and pick a scenario to start.</div>
+  <div id="results"></div>
+  <div id="tally" style="display:none;"></div>
+
+  <script type="module">
+    import { buildIndex, retrieveTopK, scenarioToQuery } from './src/retrieval.js';
+    import { setApiKey, generateAssessment } from './src/api.js';
+
+    const statusEl = document.getElementById('status');
+    const resultsEl = document.getElementById('results');
+    const tallyEl = document.getElementById('tally');
+    const apiKeyInput = document.getElementById('apiKey');
+    const scenarioSelect = document.getElementById('scenarioSelect');
+    const runBtn = document.getElementById('runBtn');
+    const runAllBtn = document.getElementById('runAllBtn');
+
+    let scenarios = [];
+    let outputSchema = null;
+    let indexReady = false;
+
+    let tally = { totalEntries: 0, issueEntries: 0, runsCompleted: 0, runsFailed: 0, runsIncomplete: 0 };
+
+    async function init() {
+      statusEl.textContent = 'Loading scenarios and schema...';
+      scenarios = await (await fetch('./data/test-scenarios.json')).json();
+      outputSchema = await (await fetch('./data/output-schema.json')).json();
+      scenarioSelect.innerHTML = scenarios
+        .map((s) => `<option value="${s.id}">${s.id}</option>`)
+        .join('');
+      statusEl.textContent = 'Ready. Enter your API key and click Run Assessment.';
+    }
+    init();
+
+    async function ensureIndex() {
+      if (!indexReady) {
+        statusEl.textContent = 'Loading embedding model + building retrieval index...';
+        await buildIndex('./data/knowledge-base.json');
+        indexReady = true;
+      }
+    }
+
+    function severityBadge(sev) {
+      const cls = (sev || 'medium').toLowerCase();
+      return `<span class="badge ${cls}">${sev}</span>`;
+    }
+
+    function renderAssessment(scenario, retrievedDocs, assessment) {
+      const groundingIssues = assessment._groundingIssues || [];
+      const completenessIssues = assessment._completenessIssues || [];
+      const div = document.createElement('div');
+      div.className = 'panel';
+      div.innerHTML = `
+        <h3>${scenario.id} ${severityBadge('complexity ' + assessment.complexity_score + '/10')}</h3>
+        <p class="note">${assessment.complexity_rationale || ''}</p>
+
+        <h4>Roadmap</h4>
+        <table>
+          <tr><th>Phase</th><th>Duration</th><th>Sources</th></tr>
+          ${(assessment.roadmap || [])
+            .map(
+              (p) => `<tr>
+                <td>${p.phase}</td>
+                <td>${p.duration}</td>
+                <td>${(p.source_ids || []).map((id) => `<span class="source-tag">${id}</span>`).join('')}</td>
+              </tr>`
+            )
+            .join('')}
+        </table>
+
+        <h4>Risk Register</h4>
+        <table>
+          <tr><th>Risk</th><th>Severity</th><th>Sources</th></tr>
+          ${(assessment.risk_register || [])
+            .map(
+              (r) => `<tr>
+                <td>${r.risk}</td>
+                <td>${severityBadge(r.severity)}</td>
+                <td>${(r.source_ids || []).map((id) => `<span class="source-tag">${id}</span>`).join('')}</td>
+              </tr>`
+            )
+            .join('')}
+        </table>
+
+        <h4>Cost Band</h4>
+        <p>${assessment.cost_band?.low || '?'} – ${assessment.cost_band?.high || '?'}
+           <span class="note">(${assessment.cost_band?.basis || ''})</span></p>
+
+        <h4>Sources Retrieved</h4>
+        <p>${retrievedDocs.map((r) => `<span class="source-tag">${r.doc.id} (${r.score.toFixed(2)})</span>`).join('')}</p>
+
+        <h4>Grounding Check</h4>
+        ${
+          groundingIssues.length
+            ? `<div class="issue">${groundingIssues.length} citation issue(s):<ul>${groundingIssues.map((i) => `<li>${i}</li>`).join('')}</ul></div>`
+            : `<div class="clean">✓ All roadmap and risk entries cite valid retrieved sources.</div>`
+        }
+
+        <h4>Completeness Check</h4>
+        ${
+          completenessIssues.length
+            ? `<div class="issue">${completenessIssues.length} completeness issue(s):<ul>${completenessIssues.map((i) => `<li>${i}</li>`).join('')}</ul>
+               <details><summary>Raw Claude response (for diagnosis)</summary><pre style="white-space:pre-wrap; font-size:0.78rem; background:#fafafa; padding:10px; border-radius:6px;">${(assessment._rawResponseText || '').replace(/</g, '&lt;')}</pre></details></div>`
+            : `<div class="clean">✓ Response is fully populated.</div>`
+        }
+      `;
+      resultsEl.prepend(div);
+
+      const entriesChecked = (assessment.roadmap?.length || 0) + (assessment.risk_register?.length || 0);
+      tally.totalEntries += entriesChecked;
+      tally.issueEntries += groundingIssues.length;
+      tally.runsCompleted += 1;
+      if (completenessIssues.length) tally.runsIncomplete += 1;
+      updateTally();
+    }
+
+    function renderError(scenario, message) {
+      const div = document.createElement('div');
+      div.className = 'panel';
+      div.innerHTML = `
+        <h3>${scenario.id} <span class="badge high">failed</span></h3>
+        <div class="issue">${message}</div>
+      `;
+      resultsEl.prepend(div);
+      tally.runsFailed += 1;
+      updateTally();
+    }
+
+    function updateTally() {
+      tallyEl.style.display = 'block';
+      const rate = tally.totalEntries
+        ? (((tally.totalEntries - tally.issueEntries) / tally.totalEntries) * 100).toFixed(1)
+        : '—';
+      const completeRuns = tally.runsCompleted - tally.runsIncomplete;
+      const completenessRate = tally.runsCompleted
+        ? ((completeRuns / tally.runsCompleted) * 100).toFixed(1)
+        : '—';
+      tallyEl.innerHTML = `
+        <div>Grounding rate (citations on entries that exist): <b>${rate}%</b></div>
+        <div class="note">${tally.totalEntries - tally.issueEntries}/${tally.totalEntries} roadmap+risk entries had a valid, present source_id.</div>
+        <div style="margin-top:10px;">Completeness rate: <b>${completenessRate}%</b></div>
+        <div class="note">${completeRuns}/${tally.runsCompleted} completed runs returned a fully populated assessment.</div>
+        ${tally.runsFailed ? `<div class="issue" style="margin-top:10px;">${tally.runsFailed} run(s) failed outright (network/API error) — see failed cards above.</div>` : ''}
+      `;
+    }
+
+    async function runOne(scenarioId) {
+      const scenario = scenarios.find((s) => s.id === scenarioId);
+      const query = scenarioToQuery(scenario);
+      const retrievedDocs = await retrieveTopK(query);
+      statusEl.textContent = `Calling Claude for ${scenario.id}...`;
+      const assessment = await generateAssessment(scenario, retrievedDocs, outputSchema);
+      renderAssessment(scenario, retrievedDocs, assessment);
+    }
+
+    function sleep(ms) {
+      return new Promise((r) => setTimeout(r, ms));
+    }
+
+    runBtn.addEventListener('click', async () => {
+      setApiKey(apiKeyInput.value);
+      if (!apiKeyInput.value.trim()) {
+        statusEl.textContent = 'Enter your API key first.';
+        return;
+      }
+      runBtn.disabled = true;
+      try {
+        await ensureIndex();
+        await runOne(scenarioSelect.value);
+        statusEl.textContent = 'Done.';
+      } catch (err) {
+        statusEl.textContent = `Error: ${err.message}`;
+        renderError({ id: scenarioSelect.value }, err.message);
+        console.error(err);
+      }
+      runBtn.disabled = false;
+    });
+
+    runAllBtn.addEventListener('click', async () => {
+      setApiKey(apiKeyInput.value);
+      if (!apiKeyInput.value.trim()) {
+        statusEl.textContent = 'Enter your API key first.';
+        return;
+      }
+      runAllBtn.disabled = true;
+      runBtn.disabled = true;
+      try {
+        await ensureIndex();
+      } catch (err) {
+        statusEl.textContent = `Error building index: ${err.message}`;
+        runAllBtn.disabled = false;
+        runBtn.disabled = false;
+        return;
+      }
+      for (const s of scenarios) {
+        statusEl.textContent = `Running ${s.id}...`;
+        try {
+          await runOne(s.id);
+        } catch (err) {
+          console.error(`${s.id} failed:`, err);
+          renderError(s, err.message);
+        }
+        await sleep(400);
+      }
+      statusEl.textContent = `Batch complete — ${tally.runsCompleted} succeeded, ${tally.runsFailed} failed. See tally below.`;
+      runAllBtn.disabled = false;
+      runBtn.disabled = false;
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "migration-rag-assessor",
+  "version": "0.1.0",
+  "description": "RAG-powered migration readiness assessor — client-side embeddings + retrieval, grounded generation via Claude API",
+  "scripts": {
+    "dev": "npx serve . -l 5500"
+  },
+  "license": "MIT"
+}

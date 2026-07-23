@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Retrieval Validation Harness</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; }
+  .status { padding: 10px 14px; border-radius: 6px; background: #f0f0f0; margin: 16px 0; font-size: 0.9rem; }
+  .scenario { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .scenario h3 { margin: 0 0 6px 0; font-size: 1rem; }
+  .scenario .summary { color: #555; font-size: 0.88rem; margin-bottom: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; }
+  .hit { color: #1a7f37; font-weight: 600; }
+  .miss { color: #999; }
+  .score { font-variant-numeric: tabular-nums; }
+  #summary { margin-top: 24px; padding: 16px; background: #f7f7f7; border-radius: 8px; }
+  #summary b { font-size: 1.1rem; }
+  button { padding: 8px 16px; font-size: 0.9rem; cursor: pointer; }
+</style>
+</head>
+<body>
+  <h1>Migration Assessor — Retrieval Validation</h1>
+  <p style="color:#555; font-size:0.9rem;">
+    Loads <code>knowledge-base.json</code>, embeds every doc client-side, then runs the 8 scenarios
+    from <code>test-scenarios.json</code> through <code>retrieveTopK</code> and checks the results
+    against each scenario's <code>expected_relevant_ids</code>.
+  </p>
+  <div class="status" id="status">Not started — click Run to load the model and index.</div>
+  <button id="runBtn">Run Validation</button>
+  <div id="results"></div>
+  <div id="summary" style="display:none;"></div>
+
+  <script type="module">
+    import { buildIndex, retrieveTopK, scenarioToQuery } from './src/retrieval.js';
+
+    const statusEl = document.getElementById('status');
+    const resultsEl = document.getElementById('results');
+    const summaryEl = document.getElementById('summary');
+    const runBtn = document.getElementById('runBtn');
+
+    runBtn.addEventListener('click', run);
+
+    async function run() {
+      runBtn.disabled = true;
+      resultsEl.innerHTML = '';
+      summaryEl.style.display = 'none';
+
+      statusEl.textContent = 'Loading embedding model (first run downloads ~25MB, cached after)...';
+      await buildIndex('./data/knowledge-base.json');
+
+      statusEl.textContent = 'Loading test scenarios...';
+      const scenarios = await (await fetch('./data/test-scenarios.json')).json();
+
+      statusEl.textContent = `Running retrieval for ${scenarios.length} scenarios...`;
+
+      let totalPrecisionSum = 0;
+      let totalExpectedFound = 0;
+      let totalExpected = 0;
+
+      for (const scenario of scenarios) {
+        const query = scenarioToQuery(scenario);
+        const results = await retrieveTopK(query); // uses new default: k=5, Risk Patterns category floor
+        const retrievedIds = results.map(r => r.doc.id);
+        const expected = scenario.expected_relevant_ids || [];
+        const foundExpected = expected.filter(id => retrievedIds.includes(id));
+        const precisionAtK = expected.length ? foundExpected.length / expected.length : null;
+
+        totalExpectedFound += foundExpected.length;
+        totalExpected += expected.length;
+        if (precisionAtK !== null) totalPrecisionSum += precisionAtK;
+
+        const div = document.createElement('div');
+        div.className = 'scenario';
+        div.innerHTML = `
+          <h3>${scenario.id}</h3>
+          <div class="summary">${scenario.environment_summary}</div>
+          <table>
+            <tr><th>Retrieved Doc</th><th>Score</th><th>Expected?</th></tr>
+            ${results.map(r => `
+              <tr>
+                <td>${r.doc.id}</td>
+                <td class="score">${r.score.toFixed(3)}</td>
+                <td class="${expected.includes(r.doc.id) ? 'hit' : 'miss'}">
+                  ${expected.includes(r.doc.id) ? '✓ expected' : '—'}
+                </td>
+              </tr>
+            `).join('')}
+          </table>
+          <p style="font-size:0.82rem; color:#555; margin-top:8px;">
+            Expected-relevant recall: ${foundExpected.length}/${expected.length}
+            (${expected.filter(id => !retrievedIds.includes(id)).join(', ') || 'none missed'})
+          </p>
+        `;
+        resultsEl.appendChild(div);
+      }
+
+      const avgRecall = scenarios.length ? (totalPrecisionSum / scenarios.length * 100).toFixed(1) : '0';
+      summaryEl.style.display = 'block';
+      summaryEl.innerHTML = `
+        <div>Average expected-doc recall across ${scenarios.length} scenarios: <b>${avgRecall}%</b></div>
+        <div style="font-size:0.85rem; color:#555; margin-top:6px;">
+          (${totalExpectedFound}/${totalExpected} expected-relevant docs were retrieved)
+        </div>
+        <div style="font-size:0.8rem; color:#888; margin-top:10px;">
+          Note: "expected_relevant_ids" reflect judgment when writing the KB, not ground truth —
+          read through the per-scenario tables above and eyeball whether the <em>actual</em> retrieved
+          results make sense, especially any doc retrieved that wasn't "expected."
+        </div>
+      `;
+
+      statusEl.textContent = `Done — ${scenarios.length} scenarios evaluated.`;
+      runBtn.disabled = false;
+    }
+  </script>
+</body>
+</html>
