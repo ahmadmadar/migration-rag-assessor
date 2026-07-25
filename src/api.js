@@ -25,7 +25,7 @@ export function clearApiKey() {
   sessionApiKey = null;
 }
 
-function buildSystemPrompt(outputSchema) {
+function buildSystemPrompt() {
   return `You are a migration assessment engine used by an enterprise technology consultant to produce structured, grounded migration readiness assessments.
 
 Rules you MUST follow:
@@ -33,9 +33,36 @@ Rules you MUST follow:
 2. Every entry in "roadmap" and every entry in "risk_register" MUST include a "source_ids" array citing which retrieved document id(s) informed it. Never invent a source_id that was not in the retrieved set provided to you.
 3. If no retrieved document supports a recommendation you would otherwise want to make, omit that recommendation rather than generating it ungrounded.
 4. Respond with valid JSON only. No markdown code fences, no preamble, no text outside the JSON object.
+5. Your JSON response MUST have EXACTLY these six top-level keys and no others: complexity_score, complexity_rationale, roadmap, risk_register, cost_band, sources_used. Do NOT wrap your response in an outer key like "fields", "assessment", "result", or "data". Do NOT include "$schema" or "description" keys in your output — those describe the schema, they are not part of your response.
 
-Output must match this exact schema:
-${JSON.stringify(outputSchema, null, 2)}`;
+Here is an EXAMPLE of the exact shape your response must match (values are illustrative only — generate real content from the scenario and retrieved documents, do not reuse this example's text):
+
+{
+  "complexity_score": 6,
+  "complexity_rationale": "One sentence explaining the score.",
+  "roadmap": [
+    {
+      "phase": "Discovery & Dependency Mapping",
+      "duration": "4-6 weeks",
+      "activities": ["Specific activity one", "Specific activity two"],
+      "source_ids": ["some-doc-id"]
+    }
+  ],
+  "risk_register": [
+    {
+      "risk": "Description of a specific risk",
+      "severity": "high",
+      "mitigation": "Specific mitigation step",
+      "source_ids": ["some-doc-id"]
+    }
+  ],
+  "cost_band": {
+    "low": "$500K",
+    "high": "$800K",
+    "basis": "What drove this range"
+  },
+  "sources_used": ["some-doc-id"]
+}`;
 }
 
 function buildUserMessage(scenario, retrievedDocs) {
@@ -91,7 +118,7 @@ export async function generateAssessment(scenario, retrievedDocs, outputSchema) 
     body: JSON.stringify({
       model: MODEL,
       max_tokens: MAX_TOKENS,
-      system: buildSystemPrompt(outputSchema),
+      system: buildSystemPrompt(),
       messages: [{ role: 'user', content: buildUserMessage(scenario, retrievedDocs) }],
     }),
   });
@@ -115,9 +142,26 @@ export async function generateAssessment(scenario, retrievedDocs, outputSchema) 
     throw new Error(`Failed to parse Claude's response as JSON: ${err.message}\n\nRaw response:\n${cleaned}`);
   }
 
+  parsed = unwrapIfNeeded(parsed);
+
   parsed._groundingIssues = validateAssessment(parsed, retrievedDocs);
   parsed._completenessIssues = validateCompleteness(parsed);
   parsed._rawResponseText = textBlock.text;
+  return parsed;
+}
+
+/**
+ * Defensive fallback: if Claude wraps the assessment in an extra key
+ * (e.g. "fields", mirroring output-schema.json's own structure instead
+ * of the flat shape we want), unwrap it. Backstop alongside the explicit
+ * prompt instruction not to do this — observed in practice on live
+ * GitHub Pages testing.
+ */
+function unwrapIfNeeded(parsed) {
+  const hasTopLevelShape = Array.isArray(parsed.roadmap) || typeof parsed.complexity_score === 'number';
+  if (!hasTopLevelShape && parsed.fields && typeof parsed.fields === 'object') {
+    return parsed.fields;
+  }
   return parsed;
 }
 
