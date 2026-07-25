@@ -59,3 +59,5 @@ This ships as a static site with no backend, so a Claude API key embedded in cli
 - **`output-schema.json`** isn't runtime data — it's baked into the Day 3 system prompt as the JSON contract Claude must follow, including the rule that every roadmap phase and risk entry must cite `source_ids` from the retrieved docs actually used.
 - **`scenario-schema.json`** documents the input contract; the Day 4 form is hardcoded to it rather than dynamically generated, to keep the build on schedule.
 - **`retrieval.js`'s `scenarioToQuery()`** is shared between `retrieval-test.html` and the eventual `app.js`, so the validated retrieval behavior is exactly what ships — no drift between test and production.
+
+
